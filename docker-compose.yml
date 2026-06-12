@@ -1,0 +1,28 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: genai-gateway
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Langfuse — use Langfuse Cloud (free tier) for local dev.
+      # Sign up at https://cloud.langfuse.com, create a project, copy keys to .env
+      # For self-hosted: set LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-false}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
+    volumes:
+      - ./app:/app/app
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

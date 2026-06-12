@@ -1,0 +1,1 @@
+"""Observability package — LLM tracing, cost tracking, and Azure Monitor foundation."""
