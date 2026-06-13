@@ -11,9 +11,7 @@ class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"] = Field(
         ..., description="The role of the message author."
     )
-    content: str = Field(
-        ..., description="The content of the message.", min_length=1
-    )
+    content: str = Field(..., description="The content of the message.", min_length=1)
 
 
 class ChatRequest(BaseModel):

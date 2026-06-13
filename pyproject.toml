@@ -33,3 +33,12 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+
+# ← add this entire block
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+disallow_untyped_defs = true
+warn_return_any = false
+exclude = ["scripts/"]     # scripts use sys.path manipulation; exclude from strict checking

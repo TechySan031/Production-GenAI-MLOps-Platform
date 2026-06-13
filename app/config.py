@@ -7,6 +7,7 @@ not at 3 AM on a Saturday when a request hits a missing key.
 
 from enum import Enum
 from functools import lru_cache
+
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings
 
@@ -24,7 +25,8 @@ class LLMProvider(str, Enum):
 
     OPENAI = "openai"
     AZURE_OPENAI = "azure_openai"
-    GROQ = "groq"                        # ← add this
+    GROQ = "groq"  # ← add this
+
 
 class Settings(BaseSettings):
     """Application settings with typed validation and .env support."""
@@ -36,7 +38,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # --- Server ---
-    HOST: str = "0.0.0.0"
+    HOST: str = "0.0.0.0"  # nosec B104
     PORT: int = 8000
 
     # --- LLM Provider Selection ---
@@ -54,7 +56,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_ENDPOINT: str = ""
     AZURE_OPENAI_API_VERSION: str = "2024-10-21"
     AZURE_OPENAI_DEPLOYMENT: str = ""
-    
+
     # --- Groq ---
     GROQ_API_KEY: SecretStr = SecretStr("")
     GROQ_MODEL: str = "llama-3.1-8b-instant"
@@ -94,15 +96,14 @@ class Settings(BaseSettings):
             if not self.AZURE_OPENAI_API_KEY.get_secret_value():
                 missing.append("AZURE_OPENAI_API_KEY")
             if missing:
-                raise ValueError(
-                    f"LLM_PROVIDER=azure_openai requires: {', '.join(missing)}"
-                )
-            
-        if self.LLM_PROVIDER == LLMProvider.GROQ:        # ← add this block
+                raise ValueError(f"LLM_PROVIDER=azure_openai requires: {', '.join(missing)}")
+
+        if self.LLM_PROVIDER == LLMProvider.GROQ:  # ← add this block
             if not self.GROQ_API_KEY.get_secret_value():
                 raise ValueError("GROQ_API_KEY is required when LLM_PROVIDER=groq")
 
         return self
+
 
 @lru_cache
 def get_settings() -> Settings:

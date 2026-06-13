@@ -15,7 +15,6 @@ function handles this via substring matching so costs are correctly attributed.
 
 from dataclasses import asdict, dataclass
 
-
 # (input_per_1m_usd, output_per_1m_usd)
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     # GPT-4o family
@@ -32,7 +31,7 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "o1-mini": (3.00, 12.00),
     # o3 family
     "o3-mini": (1.10, 4.40),
-# Groq-hosted models (pricing per 1M tokens, paid tier)
+    # Groq-hosted models (pricing per 1M tokens, paid tier)
     "llama-3.1-8b-instant": (0.05, 0.08),
     "llama-3.3-70b-versatile": (0.59, 0.79),
     "llama3-8b-8192": (0.05, 0.08),
@@ -110,7 +109,7 @@ def _normalize_model_name(model: str) -> str:
         MODEL_PRICING.keys(),
         key=len,
         reverse=True,
-    ):  
+    ):
         known_stripped = known_model.lower().replace("-", "")
         if known_stripped in model_stripped:
             return known_model

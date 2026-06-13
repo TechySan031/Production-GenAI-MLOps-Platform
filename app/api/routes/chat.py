@@ -32,9 +32,7 @@ router = APIRouter(tags=["Chat"])
         502: {"model": ErrorResponse, "description": "LLM provider error"},
     },
 )
-async def chat_completion(
-    chat_request: ChatRequest, request: Request
-) -> ChatResponse:
+async def chat_completion(chat_request: ChatRequest, request: Request) -> ChatResponse:
     """Process a chat completion request."""
     request_id = getattr(request.state, "request_id", "unknown")
     llm_service = request.app.state.llm_service
@@ -74,9 +72,7 @@ async def chat_completion(
             "Authentication failed",
             extra={"request_id": request_id, "error": str(e)},
         )
-        raise HTTPException(
-            status_code=401, detail="LLM provider authentication failed."
-        )
+        raise HTTPException(status_code=401, detail="LLM provider authentication failed.")
 
     except RateLimitError as e:
         logger.warning(
@@ -93,20 +89,16 @@ async def chat_completion(
             "Connection error",
             extra={"request_id": request_id, "error": str(e)},
         )
-        raise HTTPException(
-            status_code=502, detail="Failed to connect to LLM provider."
-        )
+        raise HTTPException(status_code=502, detail="Failed to connect to LLM provider.")
 
     except APIError as e:
         logger.error(
             "LLM API error",
             extra={"request_id": request_id, "error": str(e)},
         )
-        raise HTTPException(
-            status_code=502, detail=f"LLM provider error: {e.message}"
-        )
+        raise HTTPException(status_code=502, detail=f"LLM provider error: {e.message}")
 
-    except Exception as e:
+    except Exception:
         logger.exception(
             "Unexpected error during chat completion",
             extra={"request_id": request_id},

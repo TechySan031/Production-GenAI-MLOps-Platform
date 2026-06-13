@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock
 
-from openai import AuthenticationError, RateLimitError, APIConnectionError
+from openai import APIConnectionError, AuthenticationError, RateLimitError
 
 
 class TestChatCompletion:

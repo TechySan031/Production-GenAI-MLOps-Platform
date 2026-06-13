@@ -6,6 +6,7 @@ Human-readable text format for local development.
 
 import logging
 import sys
+from typing import Any
 
 from pythonjsonlogger.json import JsonFormatter
 
@@ -23,6 +24,8 @@ def setup_logging() -> None:
     root_logger.handlers.clear()
 
     handler = logging.StreamHandler(sys.stdout)
+
+    formatter: Any
 
     if settings.LOG_FORMAT == "json":
         formatter = JsonFormatter(

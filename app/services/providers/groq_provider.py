@@ -16,7 +16,8 @@ API reference: https://console.groq.com/docs/openai
 import logging
 import time
 import uuid
-
+from openai.types.chat import ChatCompletionMessageParam
+from typing import cast
 from openai import AsyncOpenAI
 
 from app.config import Settings
@@ -81,9 +82,10 @@ class GroqProvider(BaseProvider):
 
         response = await self._client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": m.role, "content": m.content} for m in request.messages
-            ],
+            messages=cast(
+                list[ChatCompletionMessageParam],
+                [{"role": m.role, "content": m.content} for m in request.messages],
+            ),      
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )

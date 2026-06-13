@@ -12,7 +12,7 @@ Phase 2 additions over Phase 1:
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config import Settings
 from app.models.requests import ChatRequest
@@ -76,13 +76,13 @@ class LLMService:
         )
 
         # Capture wall-clock timestamps for Langfuse; monotonic for latency calculation
-        start_dt = datetime.now(timezone.utc)
+        start_dt = datetime.now(UTC)
         start_monotonic = time.monotonic()
 
         try:
             response = await self._provider.chat_completion(request)
 
-            end_dt = datetime.now(timezone.utc)
+            end_dt = datetime.now(UTC)
             latency_ms = (time.monotonic() - start_monotonic) * 1000
 
             cost = calculate_cost(
@@ -97,9 +97,7 @@ class LLMService:
                     "temperature": request.temperature,
                     "max_tokens": request.max_tokens,
                 },
-                input_messages=[
-                    {"role": m.role, "content": m.content} for m in request.messages
-                ],
+                input_messages=[{"role": m.role, "content": m.content} for m in request.messages],
                 output=response.choices[0].message.content if response.choices else "",
                 # Langfuse expects "input"/"output" for token fields, not "prompt"/"completion"
                 usage={

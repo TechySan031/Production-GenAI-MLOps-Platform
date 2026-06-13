@@ -18,9 +18,7 @@ from starlette.responses import Response
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Middleware that ensures every request has a unique trace ID."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Honor client-provided ID or generate a new one
         request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
 

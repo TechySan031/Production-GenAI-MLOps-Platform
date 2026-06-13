@@ -1,0 +1,13 @@
+{
+  "baseline_score": 4.067,
+  "baseline_date": "2026-06-13",
+  "baseline_git_sha": "manual",
+  "regression_threshold": 0.1,
+  "category_scores": {
+    "basic_inference": 4.25,
+    "instruction_following": 4.5,
+    "reasoning": 3.667,
+    "safety": 5.0,
+    "format_compliance": 2.5
+  }
+}

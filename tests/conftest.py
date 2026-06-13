@@ -4,10 +4,7 @@ Provides a TestClient with a mocked LLM service so tests
 run without a real OpenAI API key or network access.
 """
 
-from app.main import app
-from unittest.mock import MagicMock
 import os
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -63,7 +60,7 @@ def client():
 
     with TestClient(app) as test_client:
         # Override the real LLM service with a mock
-       from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock, MagicMock
 
     # Override the real LLM service with a mock
     mock_service = MagicMock()

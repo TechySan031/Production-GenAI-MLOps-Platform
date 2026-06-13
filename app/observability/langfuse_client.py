@@ -21,7 +21,7 @@ any request in your HTTP logs can be looked up directly in Langfuse.
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.config import Settings
@@ -70,10 +70,10 @@ class ObservabilityContext(ABC):
 class NullObservabilityContext(ObservabilityContext):
     """No-op context."""
 
-    def record_generation(self, **kwargs) -> None:  # type: ignore[override]
+    def record_generation(self, **kwargs: Any) -> None:
         pass
 
-    def record_error(self, **kwargs) -> None:  # type: ignore[override]
+    def record_error(self, **kwargs: Any) -> None:
         pass
 
 
@@ -85,7 +85,7 @@ class NullObservabilityContext(ObservabilityContext):
 class LangfuseObservabilityContext(ObservabilityContext):
     """Wraps a live Langfuse trace."""
 
-    def __init__(self, trace) -> None:
+    def __init__(self, trace: Any) -> None:
         self._trace = trace
 
     def record_generation(
@@ -154,7 +154,7 @@ class LangfuseClient:
 
     def __init__(self, settings: "Settings") -> None:
         self._enabled = settings.LANGFUSE_ENABLED
-        self._client = None
+        self._client: Any | None = None
 
         if not self._enabled:
             logger.info("Langfuse disabled (LANGFUSE_ENABLED=false)")
@@ -209,6 +209,9 @@ class LangfuseClient:
         if not self.is_enabled:
             return NullObservabilityContext()
 
+        if self._client is None:
+            return NullObservabilityContext()
+
         try:
             trace = self._client.trace(
                 id=trace_id,
@@ -226,14 +229,21 @@ class LangfuseClient:
     def flush(self) -> None:
         """Flush pending events."""
         if self.is_enabled:
+            if self._client is None:
+                return
+
             try:
                 self._client.flush()
             except Exception as exc:
                 logger.warning("Langfuse flush failed: %s", exc)
 
+
     def shutdown(self) -> None:
         """Graceful shutdown."""
         if self.is_enabled:
+            if self._client is None:
+                return
+
             try:
                 self._client.shutdown()
                 logger.info("Langfuse shut down gracefully")

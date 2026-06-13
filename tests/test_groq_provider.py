@@ -1,7 +1,7 @@
 """Tests for the Groq provider."""
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
 def _make_settings():
@@ -10,6 +10,7 @@ def _make_settings():
     os.environ.setdefault("OPENAI_API_KEY", "sk-test")
 
     from app.config import get_settings
+
     get_settings.cache_clear()
     settings = get_settings()
     get_settings.cache_clear()
@@ -20,21 +21,33 @@ class TestGroqProvider:
     def test_provider_name_is_groq(self):
         with patch("app.services.providers.groq_provider.AsyncOpenAI"):
             from app.services.providers.groq_provider import GroqProvider
+
             provider = GroqProvider(_make_settings())
+
             assert provider.provider_name == "groq"
 
     def test_uses_groq_base_url(self):
-        with patch("app.services.providers.groq_provider.AsyncOpenAI") as mock_client:
-            from app.services.providers.groq_provider import GroqProvider, _GROQ_API_BASE
+        with patch(
+            "app.services.providers.groq_provider.AsyncOpenAI"
+        ) as mock_openai:
+            from app.services.providers.groq_provider import (
+                _GROQ_API_BASE,
+                GroqProvider,
+            )
+
             GroqProvider(_make_settings())
-            call_kwargs = mock_client.call_args.kwargs
+
+            call_kwargs = mock_openai.call_args.kwargs
+
             assert call_kwargs["base_url"] == _GROQ_API_BASE
 
     def test_default_model_from_settings(self):
-        with patch("app.services.providers.groq_provider.AsyncOpenAI") as mock_openai:
+        with patch("app.services.providers.groq_provider.AsyncOpenAI"):
             from app.services.providers.groq_provider import GroqProvider
+
             settings = _make_settings()
             provider = GroqProvider(settings)
+
             assert provider._settings.GROQ_MODEL == "llama-3.1-8b-instant"
 
 
@@ -53,16 +66,16 @@ class TestGroqViaHTTPEndpoint:
         os.environ.setdefault("ENVIRONMENT", "development")
 
         from app.config import get_settings
+
         get_settings.cache_clear()
 
         from app.main import create_app
-        from app.models.responses import (
-            ChatChoice, ChatMessageResponse, ChatResponse, UsageInfo
-        )
+        from app.models.responses import ChatChoice, ChatMessageResponse, ChatResponse, UsageInfo
 
         app = create_app()
 
         from fastapi.testclient import TestClient
+
         with TestClient(app) as client:
             mock_service = AsyncMock()
             mock_service.provider_name = "groq"

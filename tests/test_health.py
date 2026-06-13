@@ -32,9 +32,7 @@ class TestLiveness:
 
     def test_honors_client_request_id(self, client):
         custom_id = "my-trace-id-123"
-        response = client.get(
-            "/health", headers={"x-request-id": custom_id}
-        )
+        response = client.get("/health", headers={"x-request-id": custom_id})
         assert response.headers["x-request-id"] == custom_id
 
 
