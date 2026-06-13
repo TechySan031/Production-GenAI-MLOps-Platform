@@ -40,3 +40,5 @@ coverage.xml
 
 # Ruff
 .ruff_cache/
+
+eval_results.json
