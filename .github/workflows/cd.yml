@@ -1,4 +1,4 @@
-﻿# CD — Build, Deploy Staging, Smoke Test, Promote to Production
+# CD — Build, Deploy Staging, Smoke Test, Promote to Production
 #
 # Triggered when the CI workflow completes successfully on main.
 # This ordering guarantees code quality gates and eval gates passed
