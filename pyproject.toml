@@ -42,3 +42,15 @@ ignore_missing_imports = true
 disallow_untyped_defs = true
 warn_return_any = false
 exclude = ["scripts/"]     # scripts use sys.path manipulation; exclude from strict checking
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["infra*"]
