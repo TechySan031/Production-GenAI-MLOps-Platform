@@ -21,9 +21,10 @@ How Azure OpenAI differs from the standard OpenAI provider:
 import logging
 import time
 import uuid
-from openai.types.chat import ChatCompletionMessageParam
 from typing import cast
+
 from openai import AsyncAzureOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 from app.config import Settings
 from app.models.requests import ChatRequest
@@ -82,7 +83,7 @@ class AzureOpenAIProvider(BaseProvider):
             messages=cast(
                 list[ChatCompletionMessageParam],
                 [{"role": m.role, "content": m.content} for m in request.messages],
-            ),  
+            ),
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )

@@ -237,7 +237,6 @@ class LangfuseClient:
             except Exception as exc:
                 logger.warning("Langfuse flush failed: %s", exc)
 
-
     def shutdown(self) -> None:
         """Graceful shutdown."""
         if self.is_enabled:

@@ -5,14 +5,14 @@ Validated at startup — the app crashes immediately if config is invalid,
 not at 3 AM on a Saturday when a request hits a missing key.
 """
 
-from enum import Enum
+from enum import StrEnum
 from functools import lru_cache
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     """Deployment environments."""
 
     DEVELOPMENT = "development"
@@ -20,7 +20,7 @@ class Environment(str, Enum):
     PRODUCTION = "production"
 
 
-class LLMProvider(str, Enum):
+class LLMProvider(StrEnum):
     """Supported LLM provider backends."""
 
     OPENAI = "openai"

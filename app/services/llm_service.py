@@ -12,7 +12,7 @@ Phase 2 additions over Phase 1:
 import logging
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from app.config import Settings
 from app.models.requests import ChatRequest

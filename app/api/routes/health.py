@@ -38,13 +38,13 @@ async def readiness(request: Request) -> JSONResponse:
     llm_service = request.app.state.llm_service
 
     checks = {
-    "api_key_configured": bool(
-        settings.OPENAI_API_KEY.get_secret_value()
-        or settings.AZURE_OPENAI_API_KEY.get_secret_value()
-        or settings.GROQ_API_KEY.get_secret_value()
-    ),
-    "llm_provider_healthy": await llm_service.is_healthy(),
-}
+        "api_key_configured": bool(
+            settings.OPENAI_API_KEY.get_secret_value()
+            or settings.AZURE_OPENAI_API_KEY.get_secret_value()
+            or settings.GROQ_API_KEY.get_secret_value()
+        ),
+        "llm_provider_healthy": await llm_service.is_healthy(),
+    }
 
     all_healthy = all(checks.values())
     status_code = 200 if all_healthy else 503

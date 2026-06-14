@@ -27,9 +27,7 @@ class TestGroqProvider:
             assert provider.provider_name == "groq"
 
     def test_uses_groq_base_url(self):
-        with patch(
-            "app.services.providers.groq_provider.AsyncOpenAI"
-        ) as mock_openai:
+        with patch("app.services.providers.groq_provider.AsyncOpenAI") as mock_openai:
             from app.services.providers.groq_provider import (
                 _GROQ_API_BASE,
                 GroqProvider,

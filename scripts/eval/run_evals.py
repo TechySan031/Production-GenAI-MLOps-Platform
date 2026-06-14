@@ -38,7 +38,7 @@ import os
 import sys
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -382,7 +382,7 @@ def update_baseline(
     """Write current scores as the new baseline. Preserves threshold."""
     new_baseline = {
         "baseline_score": summary.average_score,
-        "baseline_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "baseline_date": datetime.now(UTC).strftime("%Y-%m-%d"),
         "baseline_git_sha": git_sha,
         "regression_threshold": baseline.get("regression_threshold", 0.10),
         "category_scores": summary.category_scores,
@@ -509,7 +509,7 @@ def main() -> int:
     # ── Write results artifact ────────────────────────────────────────────
     output = {
         "git_sha": os.environ.get("GITHUB_SHA", "local"),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "api_url": args.api_url,
         "judge_model": JUDGE_MODEL,
         "judge_base_url": JUDGE_BASE_URL,
