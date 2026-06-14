@@ -1,25 +1,25 @@
-﻿# CD â€” Build, Deploy Staging, Smoke Test, Promote to Production
+﻿# CD — Build, Deploy Staging, Smoke Test, Promote to Production
 #
 # Triggered when the CI workflow completes successfully on main.
 # This ordering guarantees code quality gates and eval gates passed
 # before any deployment begins.
 #
 # Pipeline:
-#   build-and-push â†’ deploy-staging â†’ smoke-test-staging
-#     â†’ deploy-production (requires GitHub environment approval)
+#   build-and-push → deploy-staging → smoke-test-staging
+#     → deploy-production (requires GitHub environment approval)
 #
 # Required GitHub Secrets:
-#   AZURE_CLIENT_ID         â€” OIDC service principal client ID
-#   AZURE_TENANT_ID         â€” Azure tenant ID
-#   AZURE_SUBSCRIPTION_ID   â€” Azure subscription ID
-#   GROQ_API_KEY            â€” For smoke tests against staging
+#   AZURE_CLIENT_ID         — OIDC service principal client ID
+#   AZURE_TENANT_ID         — Azure tenant ID
+#   AZURE_SUBSCRIPTION_ID   — Azure subscription ID
+#   GROQ_API_KEY            — For smoke tests against staging
 #
-# Required GitHub Variables (Settings â†’ Variables â†’ Actions):
-#   ACR_NAME                â€” Container registry name (without .azurecr.io)
-#   RESOURCE_GROUP          â€” Azure resource group name
-#   STAGING_APP_NAME        â€” Container App name for staging
-#   PROD_APP_NAME           â€” Container App name for production
-#   KEY_VAULT_NAME          â€” Key Vault name (for rollback data)
+# Required GitHub Variables (Settings → Variables → Actions):
+#   ACR_NAME                — Container registry name (without .azurecr.io)
+#   RESOURCE_GROUP          — Azure resource group name
+#   STAGING_APP_NAME        — Container App name for staging
+#   PROD_APP_NAME           — Container App name for production
+#   KEY_VAULT_NAME          — Key Vault name (for rollback data)
 
 name: CD
 
@@ -34,7 +34,7 @@ permissions:
   contents: read
 
 # Prevent parallel deployments. A new push to main while a deployment
-# is in progress will queue â€” never cancel an in-flight deployment.
+# is in progress will queue — never cancel an in-flight deployment.
 concurrency:
   group: cd-production
   cancel-in-progress: false
@@ -45,22 +45,22 @@ env:
 
 jobs:
 
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   # Gate: only proceed if CI passed. Exit immediately on CI failure.
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   check-ci:
     name: Check CI Status
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: CI passed â€” proceeding with deployment
+      - name: CI passed — proceeding with deployment
         run: |
           echo "CI run: ${{ github.event.workflow_run.html_url }}"
           echo "Commit: ${{ github.event.workflow_run.head_sha }}"
 
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   # Job 1: Build Docker image and push to ACR
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   build-and-push:
     name: Build & Push to ACR
     runs-on: ubuntu-latest
@@ -75,7 +75,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Azure Login â€” OIDC
+      - name: Azure Login — OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -109,17 +109,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   # Job 2: Deploy to Staging and wait for it to be healthy
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: build-and-push
-    environment: staging   # No approval gate â€” auto-deploy to staging
+    environment: staging   # No approval gate — auto-deploy to staging
 
     steps:
-      - name: Azure Login â€” OIDC
+      - name: Azure Login — OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -154,7 +154,7 @@ jobs:
               READY=true
               break
             fi
-            echo "  Attempt ${i}/24: HTTP ${STATUS} â€” retrying in 5s..."
+            echo "  Attempt ${i}/24: HTTP ${STATUS} — retrying in 5s..."
             sleep 5
           done
 
@@ -163,11 +163,11 @@ jobs:
             exit 1
           fi
 
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   # Job 3: Smoke tests against live staging environment
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   smoke-test-staging:
-    name: Smoke Tests â€” Staging
+    name: Smoke Tests — Staging
     runs-on: ubuntu-latest
     needs: deploy-staging
 
@@ -186,7 +186,7 @@ jobs:
       - name: Install dependencies
         run: pip install httpx
 
-      - name: Azure Login â€” OIDC
+      - name: Azure Login — OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -211,22 +211,22 @@ jobs:
         env:
           # GROQ_API_KEY is read by the staged app itself (already in ACA secrets).
           # The smoke test's inference call goes through the deployed app, not directly
-          # to Groq â€” so no API key needed here. Smoke test only verifies schema + health.
+          # to Groq — so no API key needed here. Smoke test only verifies schema + health.
           GROQ_API_KEY: ""
 
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ──────────────────────────────────────────────────────────────────────────
   # Job 4: Promote to Production
   # Requires manual approval via GitHub environment protection rules.
-  # Configure in: Settings â†’ Environments â†’ production â†’ Required reviewers
-  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # Configure in: Settings → Environments → production → Required reviewers
+  # ──────────────────────────────────────────────────────────────────────────
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: smoke-test-staging
-    environment: production   # Approval gate â€” requires reviewer sign-off
+    environment: production   # Approval gate — requires reviewer sign-off
 
     steps:
-      - name: Azure Login â€” OIDC
+      - name: Azure Login — OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -236,7 +236,7 @@ jobs:
       - name: Save current production image for rollback
         id: save-rollback
         run: |
-          # Read current image before overwriting â€” this is the rollback target.
+          # Read current image before overwriting — this is the rollback target.
           CURRENT=$(az containerapp show \
             --name ${{ vars.PROD_APP_NAME }} \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
@@ -283,7 +283,7 @@ jobs:
               HEALTHY=true
               break
             fi
-            echo "  Attempt ${i}/24: HTTP ${STATUS} â€” retrying in 5s..."
+            echo "  Attempt ${i}/24: HTTP ${STATUS} — retrying in 5s..."
             sleep 5
           done
 
