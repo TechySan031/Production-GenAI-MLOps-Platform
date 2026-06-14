@@ -12,7 +12,7 @@ Phase 2 additions over Phase 1:
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config import Settings
 from app.models.requests import ChatRequest
@@ -76,15 +76,13 @@ class LLMService:
         )
 
         # Capture wall-clock timestamps for Langfuse; monotonic for latency calculation
-        # pyrefly: ignore [missing-attribute]
-        start_dt = datetime.now(datetime.UTC)
+        start_dt = datetime.now(timezone.utc)
         start_monotonic = time.monotonic()
 
         try:
             response = await self._provider.chat_completion(request)
 
-            # pyrefly: ignore [missing-attribute]
-            end_dt = datetime.now(datetime.UTC)
+            end_dt = datetime.now(timezone.utc)
             latency_ms = (time.monotonic() - start_monotonic) * 1000
 
             cost = calculate_cost(
