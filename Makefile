@@ -99,6 +99,74 @@ python scripts/smoke_test.py
 --api-url $(API_URL)
 --skip-inference
 
+
+# ── Azure infrastructure ──────────────────────────────────────────────────────
+# Prerequisites: az login, set RESOURCE_GROUP, GROQ_API_KEY
+
+RESOURCE_GROUP ?= $(shell echo $$RESOURCE_GROUP)
+
+# Deploy staging infrastructure (first-time or updates)
+infra-staging:
+	@[ -n "$(RESOURCE_GROUP)" ] || (echo "Set RESOURCE_GROUP"; exit 1)
+	@[ -n "$(GROQ_API_KEY)" ] || (echo "Set GROQ_API_KEY"; exit 1)
+	az deployment group create \
+		--resource-group $(RESOURCE_GROUP) \
+		--template-file infra/main.bicep \
+		--parameters infra/parameters/staging.bicepparam \
+		--parameters groqApiKey="$(GROQ_API_KEY)" \
+		--output table
+
+# Deploy production infrastructure
+infra-production:
+	@[ -n "$(RESOURCE_GROUP)" ] || (echo "Set RESOURCE_GROUP"; exit 1)
+	@[ -n "$(GROQ_API_KEY)" ] || (echo "Set GROQ_API_KEY"; exit 1)
+	az deployment group create \
+		--resource-group $(RESOURCE_GROUP) \
+		--template-file infra/main.bicep \
+		--parameters infra/parameters/production.bicepparam \
+		--parameters groqApiKey="$(GROQ_API_KEY)" \
+		--output table
+
+# Show deployment outputs (FQDNs, ACR name, Key Vault name)
+infra-outputs:
+	@[ -n "$(RESOURCE_GROUP)" ] || (echo "Set RESOURCE_GROUP"; exit 1)
+	az deployment group show \
+		--resource-group $(RESOURCE_GROUP) \
+		--name main \
+		--query "properties.outputs" \
+		--output table
+
+# Set up OIDC service principal for GitHub Actions (run once)
+azure-oidc-setup:
+	@echo "Creating service principal for GitHub OIDC..."
+	@[ -n "$(GITHUB_REPO)" ] || (echo "Set GITHUB_REPO=org/repo"; exit 1)
+	@[ -n "$(RESOURCE_GROUP)" ] || (echo "Set RESOURCE_GROUP"; exit 1)
+	az ad app create --display-name "genai-gateway-github-actions" \
+		--query "{clientId:appId,tenantId:publisherDomain}" -o json
+	@echo ""
+	@echo "Next: create federated credential and Contributor role assignment."
+	@echo "See: make azure-oidc-setup-docs"
+
+# Quick smoke test against a live Azure URL
+smoke-azure:
+	@[ -n "$(AZURE_URL)" ] || (echo "Set AZURE_URL=https://..."; exit 1)
+	python scripts/smoke_test.py --api-url $(AZURE_URL)
+
+# Tail Container App logs
+logs-staging:
+	@[ -n "$(STAGING_APP_NAME)" ] || (echo "Set STAGING_APP_NAME"; exit 1)
+	az containerapp logs show \
+		--name $(STAGING_APP_NAME) \
+		--resource-group $(RESOURCE_GROUP) \
+		--follow
+
+logs-production:
+	@[ -n "$(PROD_APP_NAME)" ] || (echo "Set PROD_APP_NAME"; exit 1)
+	az containerapp logs show \
+		--name $(PROD_APP_NAME) \
+		--resource-group $(RESOURCE_GROUP) \
+		--follow
+
 ─────────────────────────────────────────────────────────────
 Cleanup
 ─────────────────────────────────────────────────────────────

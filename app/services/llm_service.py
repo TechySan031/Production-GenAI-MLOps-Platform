@@ -76,13 +76,15 @@ class LLMService:
         )
 
         # Capture wall-clock timestamps for Langfuse; monotonic for latency calculation
-        start_dt = datetime.now(UTC)
+        # pyrefly: ignore [missing-attribute]
+        start_dt = datetime.now(datetime.UTC)
         start_monotonic = time.monotonic()
 
         try:
             response = await self._provider.chat_completion(request)
 
-            end_dt = datetime.now(UTC)
+            # pyrefly: ignore [missing-attribute]
+            end_dt = datetime.now(datetime.UTC)
             latency_ms = (time.monotonic() - start_monotonic) * 1000
 
             cost = calculate_cost(

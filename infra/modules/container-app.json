@@ -1,0 +1,232 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "15742013352051704851"
+    }
+  },
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "metadata": {
+        "description": "Container App name."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region."
+      }
+    },
+    "containerAppsEnvironmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Container Apps environment resource ID."
+      }
+    },
+    "containerRegistryServer": {
+      "type": "string",
+      "metadata": {
+        "description": "ACR login server (e.g. myacr.azurecr.io)."
+      }
+    },
+    "initialImage": {
+      "type": "string",
+      "defaultValue": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+      "metadata": {
+        "description": "Initial Docker image — public placeholder for first deploy."
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "staging",
+        "production"
+      ]
+    },
+    "groqApiKey": {
+      "type": "securestring"
+    },
+    "groqModel": {
+      "type": "string",
+      "defaultValue": "llama-3.1-8b-instant"
+    },
+    "appInsightsConnectionString": {
+      "type": "securestring"
+    },
+    "langfuseSecretKey": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "langfusePublicKey": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "langfuseEnabled": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "langfuseHost": {
+      "type": "string",
+      "defaultValue": "https://cloud.langfuse.com"
+    },
+    "minReplicas": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0
+    },
+    "maxReplicas": {
+      "type": "int",
+      "defaultValue": 5,
+      "maxValue": 30
+    }
+  },
+  "variables": {
+    "acrPullRoleDefinitionId": "7f951dda-4ed3-4680-a7ca-43fe172d538d"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-11-02-preview",
+      "name": "[parameters('appName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "environmentId": "[parameters('containerAppsEnvironmentId')]",
+        "workloadProfileName": "Consumption",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8000,
+            "transport": "auto",
+            "allowInsecure": false
+          },
+          "registries": [
+            {
+              "server": "[parameters('containerRegistryServer')]",
+              "identity": "system"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "groq-api-key",
+              "value": "[parameters('groqApiKey')]"
+            },
+            {
+              "name": "appinsights-connection-string",
+              "value": "[parameters('appInsightsConnectionString')]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "gateway",
+              "image": "[parameters('initialImage')]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              },
+              "env": [
+                {
+                  "name": "ENVIRONMENT",
+                  "value": "[parameters('environment')]"
+                },
+                {
+                  "name": "PORT",
+                  "value": "8000"
+                },
+                {
+                  "name": "LOG_FORMAT",
+                  "value": "json"
+                },
+                {
+                  "name": "LLM_PROVIDER",
+                  "value": "groq"
+                },
+                {
+                  "name": "GROQ_MODEL",
+                  "value": "[parameters('groqModel')]"
+                },
+                {
+                  "name": "GROQ_API_KEY",
+                  "secretRef": "groq-api-key"
+                },
+                {
+                  "name": "LANGFUSE_ENABLED",
+                  "value": "[string(parameters('langfuseEnabled'))]"
+                },
+                {
+                  "name": "LANGFUSE_PUBLIC_KEY",
+                  "value": "[parameters('langfusePublicKey')]"
+                },
+                {
+                  "name": "LANGFUSE_SECRET_KEY",
+                  "secretRef": "langfuse-secret-key"
+                },
+                {
+                  "name": "LANGFUSE_HOST",
+                  "value": "[parameters('langfuseHost')]"
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                  "secretRef": "appinsights-connection-string"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": "[parameters('minReplicas')]",
+            "maxReplicas": "[parameters('maxReplicas')]",
+            "rules": [
+              {
+                "name": "http-scale",
+                "http": {
+                  "metadata": {
+                    "concurrentRequests": "20"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.App/containerApps', parameters('appName')), variables('acrPullRoleDefinitionId'), resourceGroup().id)]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleDefinitionId'))]",
+        "principalId": "[reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2023-11-02-preview', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/containerApps', parameters('appName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "fqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2023-11-02-preview').configuration.ingress.fqdn]"
+    },
+    "appName": {
+      "type": "string",
+      "value": "[parameters('appName')]"
+    },
+    "appId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.App/containerApps', parameters('appName'))]"
+    },
+    "managedIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('appName')), '2023-11-02-preview', 'full').identity.principalId]"
+    }
+  }
+}
