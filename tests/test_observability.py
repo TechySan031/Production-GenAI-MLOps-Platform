@@ -1,7 +1,7 @@
 """Tests for the Langfuse observability client."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from app.observability.langfuse_client import LangfuseClient
@@ -58,8 +58,7 @@ class TestLangfuseClientDisabled:
 class TestNullObservabilityContext:
     """NullObservabilityContext must be safe to call unconditionally."""
 
-    # pyrefly: ignore [missing-attribute]
-    _now = datetime.now(datetime.UTC)
+    _now = datetime.now(timezone.utc)
 
     def _context(self):
         from app.observability.langfuse_client import NullObservabilityContext
