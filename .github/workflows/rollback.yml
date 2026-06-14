@@ -1,6 +1,6 @@
-# Manual Production Rollback
+﻿# Manual Production Rollback
 #
-# Trigger from: GitHub Actions UI → Rollback Production → Run workflow
+# Trigger from: GitHub Actions UI â†’ Rollback Production â†’ Run workflow
 #
 # Reverts production to either:
 #   (a) The image explicitly specified in target_image, or
@@ -22,7 +22,7 @@ on:
         required: false
         type: string
       reason:
-        description: "Reason for rollback — recorded in the workflow log for audit."
+        description: "Reason for rollback â€” recorded in the workflow log for audit."
         required: true
         type: string
 
@@ -44,15 +44,15 @@ jobs:
     steps:
       - name: Log rollback intent (audit trail)
         run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”"
           echo "ROLLBACK INITIATED"
           echo "Triggered by : ${{ github.actor }}"
           echo "Reason       : ${{ inputs.reason }}"
           echo "Timestamp    : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "Explicit img : ${{ inputs.target_image || '(none — using Key Vault)' }}"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Explicit img : ${{ inputs.target_image || '(none â€” using Key Vault)' }}"
+          echo "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”"
 
-      - name: Azure Login — OIDC
+      - name: Azure Login â€” OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}

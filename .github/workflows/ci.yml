@@ -1,18 +1,18 @@
-# CI — Code Quality Gates + AI Evaluation Gates
+﻿# CI â€” Code Quality Gates + AI Evaluation Gates
 #
 # JOB 1 (code-quality): runs on every PR and every push to main.
 #   Lint, type check, security scan, unit tests. Zero API calls. Fast.
 #
 # JOB 2 (ai-eval-gates): runs on push to main only.
 #   Starts the real application, runs smoke tests (structural only),
-#   then runs the eval gate (15 cases × judge scoring = ~30 Groq API calls).
+#   then runs the eval gate (15 cases Ã— judge scoring = ~30 Groq API calls).
 #   Skipped on PRs to preserve free-tier API quota.
 #
 # Required GitHub Secret:
-#   GROQ_API_KEY — from console.groq.com → API Keys
+#   GROQ_API_KEY â€” from console.groq.com â†’ API Keys
 #
 # Required: set this secret in your repo before the first push to main.
-# Settings → Secrets and variables → Actions → New repository secret
+# Settings â†’ Secrets and variables â†’ Actions â†’ New repository secret
 
 name: CI
 
@@ -26,17 +26,17 @@ env:
   PYTHON_VERSION: "3.11"
 
 # Cancel in-progress runs for the same branch when new commits arrive.
-# Never cancel runs on main — let them complete.
+# Never cancel runs on main â€” let them complete.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
 
-  # ──────────────────────────────────────────────────────────────────────────
+  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   # JOB 1: Code Quality Gates
-  # Runs on every pull_request and every push — no API calls, always fast.
-  # ──────────────────────────────────────────────────────────────────────────
+  # Runs on every pull_request and every push â€” no API calls, always fast.
+  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   code-quality:
     name: Code Quality Gates
     runs-on: ubuntu-latest
@@ -54,20 +54,20 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Ruff — lint
+      - name: Ruff â€” lint
         run: ruff check app/ tests/ scripts/
 
-      - name: Ruff — format check
+      - name: Ruff â€” format check
         run: ruff format --check app/ tests/ scripts/
 
-      - name: MyPy — type check
+      - name: MyPy â€” type check
         run: mypy app/ --ignore-missing-imports --disallow-untyped-defs
 
-      - name: Bandit — security scan
+      - name: Bandit â€” security scan
         run: bandit -r app/ -ll
         # -ll = only medium and high severity findings
 
-      - name: Pytest — unit tests with coverage
+      - name: Pytest â€” unit tests with coverage
         run: |
           pytest tests/ -v \
             --cov=app \
@@ -91,11 +91,11 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
-  # ──────────────────────────────────────────────────────────────────────────
+  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   # JOB 2: AI Evaluation Gates
   # Runs on push to main only (requires GROQ_API_KEY secret).
   # Starts the real gateway, verifies it, then scores 15 benchmark cases.
-  # ──────────────────────────────────────────────────────────────────────────
+  # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ai-eval-gates:
     name: AI Evaluation Gates
     runs-on: ubuntu-latest
@@ -129,7 +129,7 @@ jobs:
               echo "Gateway ready after $((i * 2))s"
               break
             fi
-            echo "  Attempt $i/15 — retrying in 2s..."
+            echo "  Attempt $i/15 â€” retrying in 2s..."
             sleep 2
           done
 
@@ -145,7 +145,7 @@ jobs:
           ENVIRONMENT: staging
           LOG_FORMAT: json
 
-      - name: Smoke tests — structural verification
+      - name: Smoke tests â€” structural verification
         # Verify the server is correctly wired before spending API credits
         # on eval gates. --skip-inference avoids a duplicate LLM call.
         run: python scripts/smoke_test.py --api-url http://localhost:8000 --skip-inference
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload evaluation results
         uses: actions/upload-artifact@v4
-        # Upload even on failure — results show you what regressed.
+        # Upload even on failure â€” results show you what regressed.
         if: always()
         with:
           name: eval-results-${{ github.sha }}
