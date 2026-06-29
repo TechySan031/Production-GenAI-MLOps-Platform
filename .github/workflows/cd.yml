@@ -1,0 +1,300 @@
+# CD — Build, Deploy Staging, Smoke Test, Promote to Production
+#
+# Triggered when the CI workflow completes successfully on main.
+# This ordering guarantees code quality gates and eval gates passed
+# before any deployment begins.
+#
+# Pipeline:
+#   build-and-push → deploy-staging → smoke-test-staging
+#     → deploy-production (requires GitHub environment approval)
+#
+# Required GitHub Secrets:
+#   AZURE_CLIENT_ID         — OIDC service principal client ID
+#   AZURE_TENANT_ID         — Azure tenant ID
+#   AZURE_SUBSCRIPTION_ID   — Azure subscription ID
+#   GROQ_API_KEY            — For smoke tests against staging
+#
+# Required GitHub Variables (Settings → Variables → Actions):
+#   ACR_NAME                — Container registry name (without .azurecr.io)
+#   RESOURCE_GROUP          — Azure resource group name
+#   STAGING_APP_NAME        — Container App name for staging
+#   PROD_APP_NAME           — Container App name for production
+#   KEY_VAULT_NAME          — Key Vault name (for rollback data)
+
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  id-token: write   # Required for OIDC authentication to Azure
+  contents: read
+
+# Prevent parallel deployments. A new push to main while a deployment
+# is in progress will queue — never cancel an in-flight deployment.
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: genai-gateway
+  ACR_LOGIN_SERVER: ${{ vars.ACR_NAME }}.azurecr.io
+
+jobs:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Gate: only proceed if CI passed. Exit immediately on CI failure.
+  # ──────────────────────────────────────────────────────────────────────────
+  check-ci:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: CI passed — proceeding with deployment
+        run: |
+          echo "CI run: ${{ github.event.workflow_run.html_url }}"
+          echo "Commit: ${{ github.event.workflow_run.head_sha }}"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: Build Docker image and push to ACR
+  # ──────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push to ACR
+    runs-on: ubuntu-latest
+    needs: check-ci
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tag }}
+      full-image: ${{ steps.meta.outputs.full-image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Azure Login — OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          FULL="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${SHA}"
+          echo "tag=${SHA}" >> $GITHUB_OUTPUT
+          echo "full-image=${FULL}" >> $GITHUB_OUTPUT
+          echo "Image: ${FULL}"
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.full-image }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          # Reuse cached layers from previous builds on the same branch.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Deploy to Staging and wait for it to be healthy
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: staging   # No approval gate — auto-deploy to staging
+
+    steps:
+      - name: Azure Login — OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update staging Container App
+        run: |
+          az containerapp update \
+            --name ${{ vars.STAGING_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image ${{ needs.build-and-push.outputs.full-image }} \
+            --output table
+
+      - name: Wait for staging to be healthy
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ vars.STAGING_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+
+          URL="https://${FQDN}"
+          echo "Staging URL: ${URL}"
+          echo "staging-url=${URL}" >> $GITHUB_ENV
+
+          echo "Waiting for liveness probe..."
+          READY=false
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Staging healthy after $((i * 5))s"
+              READY=true
+              break
+            fi
+            echo "  Attempt ${i}/24: HTTP ${STATUS} — retrying in 5s..."
+            sleep 5
+          done
+
+          if [ "$READY" != "true" ]; then
+            echo "ERROR: Staging did not become healthy within 120s"
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 3: Smoke tests against live staging environment
+  # ──────────────────────────────────────────────────────────────────────────
+  smoke-test-staging:
+    name: Smoke Tests — Staging
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Azure Login — OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve staging FQDN
+        id: staging
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ vars.STAGING_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "url=https://${FQDN}" >> $GITHUB_OUTPUT
+          echo "Staging: https://${FQDN}"
+
+      - name: Run smoke tests (full suite)
+        run: |
+          python scripts/smoke_test.py \
+            --api-url ${{ steps.staging.outputs.url }} \
+            --retries 3
+        env:
+          # GROQ_API_KEY is read by the staged app itself (already in ACA secrets).
+          # The smoke test's inference call goes through the deployed app, not directly
+          # to Groq — so no API key needed here. Smoke test only verifies schema + health.
+          GROQ_API_KEY: ""
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 4: Promote to Production
+  # Requires manual approval via GitHub environment protection rules.
+  # Configure in: Settings → Environments → production → Required reviewers
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-push
+      - smoke-test-staging
+    environment: production   # Approval gate — requires reviewer sign-off
+
+    steps:
+      - name: Azure Login — OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Save current production image for rollback
+        id: save-rollback
+        run: |
+          # Read current image before overwriting — this is the rollback target.
+          CURRENT=$(az containerapp show \
+            --name ${{ vars.PROD_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.template.containers[0].image" \
+            -o tsv 2>/dev/null || echo "none")
+
+          echo "Current production image: ${CURRENT}"
+
+          # Write to Key Vault. The rollback workflow reads this.
+          az keyvault secret set \
+            --vault-name ${{ vars.KEY_VAULT_NAME }} \
+            --name "prod-previous-image" \
+            --value "${CURRENT}" \
+            --output none
+
+          echo "previous-image=${CURRENT}" >> $GITHUB_OUTPUT
+
+      - name: Deploy to production Container App
+        run: |
+          az containerapp update \
+            --name ${{ vars.PROD_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image ${{ needs.build-and-push.outputs.full-image }} \
+            --output table
+
+          echo "Deployed: ${{ needs.build-and-push.outputs.full-image }}"
+          echo "Previous: ${{ steps.save-rollback.outputs.previous-image }}"
+
+      - name: Verify production health
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ vars.PROD_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+
+          URL="https://${FQDN}"
+          echo "Production URL: ${URL}"
+
+          HEALTHY=false
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}/health/ready" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Production healthy after $((i * 5))s"
+              HEALTHY=true
+              break
+            fi
+            echo "  Attempt ${i}/24: HTTP ${STATUS} — retrying in 5s..."
+            sleep 5
+          done
+
+          if [ "$HEALTHY" != "true" ]; then
+            echo "ERROR: Production health check failed. Initiate rollback via rollback.yml."
+            exit 1
+          fi
+
+          echo ""
+          echo "Deployment complete."
+          echo "  Image: ${{ needs.build-and-push.outputs.full-image }}"
+          echo "  URL:   ${URL}"
