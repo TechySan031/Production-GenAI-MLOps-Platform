@@ -1,10 +1,125 @@
+# Manual Production Rollback
+#
+# Trigger from: GitHub Actions UI → Rollback Production → Run workflow
+#
+# Reverts production to either:
+#   (a) The image explicitly specified in target_image, or
+#   (b) The previous image stored in Key Vault (saved before the last deploy)
+#
+# This workflow requires the same 'production' environment approval as forward
+# deployments. Rollback is not an escape hatch that bypasses approval.
+
 name: Rollback Production
 
 on:
   workflow_dispatch:
+    inputs:
+      target_image:
+        description: >
+          Full image to rollback to.
+          Example: myacr.azurecr.io/genai-gateway:abc1234
+          Leave blank to use the previous image stored in Key Vault.
+        required: false
+        type: string
+      reason:
+        description: "Reason for rollback — recorded in the workflow log for audit."
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  PROD_APP_NAME: ${{ vars.PROD_APP_NAME }}
+  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
 
 jobs:
-  test:
+  rollback:
+    name: Rollback Production
     runs-on: ubuntu-latest
+    environment: production   # Same approval gate as forward deployments
+
     steps:
-      - run: echo "hello"
+      - name: Log rollback intent (audit trail)
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "ROLLBACK INITIATED"
+          echo "Triggered by : ${{ github.actor }}"
+          echo "Reason       : ${{ inputs.reason }}"
+          echo "Timestamp    : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Explicit img : ${{ inputs.target_image || '(none — using Key Vault)' }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Azure Login — OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve rollback target image
+        id: target
+        run: |
+          if [ -n "${{ inputs.target_image }}" ]; then
+            TARGET="${{ inputs.target_image }}"
+            echo "Source: explicit input"
+          else
+            TARGET=$(az keyvault secret show \
+              --vault-name ${{ env.KEY_VAULT_NAME }} \
+              --name "prod-previous-image" \
+              --query "value" -o tsv 2>/dev/null || echo "")
+
+            if [ -z "$TARGET" ] || [ "$TARGET" = "none" ]; then
+              echo "ERROR: No previous image in Key Vault and no explicit image provided."
+              echo "Either specify target_image or check that at least one successful"
+              echo "deployment has completed (which stores the previous image)."
+              exit 1
+            fi
+            echo "Source: Key Vault (prod-previous-image)"
+          fi
+
+          echo "Rollback target: ${TARGET}"
+          echo "image=${TARGET}" >> $GITHUB_OUTPUT
+
+      - name: Apply rollback
+        run: |
+          az containerapp update \
+            --name ${{ env.PROD_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ steps.target.outputs.image }} \
+            --output table
+
+      - name: Verify production health post-rollback
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ env.PROD_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+
+          URL="https://${FQDN}"
+          echo "Production URL: ${URL}"
+
+          HEALTHY=false
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}/health/ready" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              HEALTHY=true
+              echo "Production healthy after rollback ($((i * 5))s)"
+              break
+            fi
+            echo "  Attempt ${i}/24: HTTP ${STATUS}..."
+            sleep 5
+          done
+
+          if [ "$HEALTHY" != "true" ]; then
+            echo "ERROR: Production unhealthy after rollback."
+            echo "Investigate container logs: az containerapp logs show --name ${{ env.PROD_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }}"
+            exit 1
+          fi
+
+          echo ""
+          echo "Rollback complete."
+          echo "  Active image: ${{ steps.target.outputs.image }}"
+          echo "  URL: ${URL}"
