@@ -1,0 +1,44 @@
+- vars:
+    prompt: "What is Azure Container Apps?"
+  assert:
+    - type: llm-rubric
+      value: |
+        The response should:
+        - Explain Azure Container Apps.
+        - Mention serverless containers.
+        - Mention autoscaling.
+        - Avoid confusing ACA with AKS.
+
+- vars:
+    prompt: "Explain Azure Managed Identity."
+  assert:
+    - type: llm-rubric
+      value: |
+        The response should:
+        - Explain passwordless authentication.
+        - Mention Azure AD.
+        - Mention no stored credentials.
+
+- vars:
+    prompt: "What is Azure Key Vault?"
+  assert:
+    - type: llm-rubric
+      value: |
+        The response should:
+        - Explain secure storage of secrets.
+        - Mention certificates and keys.
+        - Recommend Managed Identity.
+
+- vars:
+    prompt: "What is Azure Container Registry?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Explain private OCI/Docker image storage.
+
+- vars:
+    prompt: "What is Azure Bicep?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Explain Infrastructure as Code for Azure.

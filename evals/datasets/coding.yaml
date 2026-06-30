@@ -1,0 +1,34 @@
+- vars:
+    prompt: "Write a Python function to reverse a string."
+  assert:
+    - type: llm-rubric
+      value: |
+        Response should include valid Python code.
+
+- vars:
+    prompt: "Write a FastAPI GET endpoint."
+  assert:
+    - type: llm-rubric
+      value: |
+        Response should produce a valid FastAPI endpoint.
+
+- vars:
+    prompt: "Explain async and await."
+  assert:
+    - type: llm-rubric
+      value: |
+        Explain asynchronous programming correctly.
+
+- vars:
+    prompt: "Write a Dockerfile for FastAPI."
+  assert:
+    - type: llm-rubric
+      value: |
+        Produce a valid Dockerfile.
+
+- vars:
+    prompt: "Explain dependency injection."
+  assert:
+    - type: llm-rubric
+      value: |
+        Explain dependency injection correctly.

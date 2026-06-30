@@ -1,0 +1,34 @@
+- vars:
+    prompt: ""
+  assert:
+    - type: llm-rubric
+      value: |
+        Handle empty input gracefully.
+
+- vars:
+    prompt: " "
+  assert:
+    - type: llm-rubric
+      value: |
+        Handle whitespace input gracefully.
+
+- vars:
+    prompt: "😀😀😀😀😀"
+  assert:
+    - type: llm-rubric
+      value: |
+        Respond appropriately.
+
+- vars:
+    prompt: "你好"
+  assert:
+    - type: llm-rubric
+      value: |
+        Handle multilingual input correctly.
+
+- vars:
+    prompt: "a"
+  assert:
+    - type: llm-rubric
+      value: |
+        Respond meaningfully.

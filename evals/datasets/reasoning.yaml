@@ -1,0 +1,34 @@
+- vars:
+    prompt: "Which weighs more: 1 kg of iron or 1 kg of cotton?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Correct answer is both weigh the same.
+
+- vars:
+    prompt: "What comes next? 2,4,8,16"
+  assert:
+    - type: llm-rubric
+      value: |
+        Correct answer is 32.
+
+- vars:
+    prompt: "Why is the sky blue?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Mention Rayleigh scattering.
+
+- vars:
+    prompt: "Solve 27 × 18."
+  assert:
+    - type: llm-rubric
+      value: |
+        Correct answer is 486.
+
+- vars:
+    prompt: "Why should software engineers write tests?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Mention reliability and regression prevention.

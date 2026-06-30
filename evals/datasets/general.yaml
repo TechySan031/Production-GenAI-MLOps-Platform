@@ -1,0 +1,40 @@
+- vars:
+    prompt: "What is Artificial Intelligence?"
+  assert:
+    - type: llm-rubric
+      value: |
+        The response should:
+        - Define AI correctly.
+        - Mention learning or reasoning.
+        - Be factually accurate.
+
+- vars:
+    prompt: "Explain Docker in simple terms."
+  assert:
+    - type: llm-rubric
+      value: |
+        The response should:
+        - Explain containers.
+        - Mention portability.
+        - Avoid incorrect technical claims.
+
+- vars:
+    prompt: "What is FastAPI?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Explain FastAPI accurately and mention Python.
+
+- vars:
+    prompt: "Explain cloud computing."
+  assert:
+    - type: llm-rubric
+      value: |
+        Mention on-demand computing resources.
+
+- vars:
+    prompt: "What is REST API?"
+  assert:
+    - type: llm-rubric
+      value: |
+        Explain REST APIs correctly.
