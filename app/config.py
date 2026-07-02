@@ -25,7 +25,7 @@ class LLMProvider(StrEnum):
 
     OPENAI = "openai"
     AZURE_OPENAI = "azure_openai"
-    GROQ = "groq"  # ← add this
+    GROQ = "groq"
 
 
 class Settings(BaseSettings):
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT: int = 30
     OPENAI_MAX_RETRIES: int = 3
 
-    # --- Azure OpenAI (future Phase 3) ---
+    # --- Azure OpenAI ---
     AZURE_OPENAI_API_KEY: SecretStr = SecretStr("")
     AZURE_OPENAI_ENDPOINT: str = ""
     AZURE_OPENAI_API_VERSION: str = "2024-10-21"
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
 
     # --- Logging ---
     LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "json"  # "json" for production, "text" for local dev
+    LOG_FORMAT: str = "json"
 
     # --- CORS ---
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
@@ -84,10 +84,11 @@ class Settings(BaseSettings):
     # --- Validators ---
     @model_validator(mode="after")
     def validate_provider_configuration(self) -> "Settings":
-        """
-        Fail fast at startup if required provider settings are missing.
-        Better to crash with a clear message at boot than fail silently at request time.
-        """
+        """Fail fast at startup if required provider settings are missing."""
+        if self.LLM_PROVIDER == LLMProvider.OPENAI:
+            if not self.OPENAI_API_KEY.get_secret_value():
+                raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
+
         if self.LLM_PROVIDER == LLMProvider.AZURE_OPENAI:
             missing = []
             if not self.AZURE_OPENAI_ENDPOINT:
@@ -99,7 +100,7 @@ class Settings(BaseSettings):
             if missing:
                 raise ValueError(f"LLM_PROVIDER=azure_openai requires: {', '.join(missing)}")
 
-        if self.LLM_PROVIDER == LLMProvider.GROQ:  # ← add this block
+        if self.LLM_PROVIDER == LLMProvider.GROQ:
             if not self.GROQ_API_KEY.get_secret_value():
                 raise ValueError("GROQ_API_KEY is required when LLM_PROVIDER=groq")
 

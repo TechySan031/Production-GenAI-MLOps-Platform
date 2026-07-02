@@ -1,20 +1,16 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Terraform configuration and provider requirements
+# Terraform Variable Values — Example
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars to version control.
 # ─────────────────────────────────────────────────────────────────────────────
 
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-
-  subscription_id = var.subscription_id
-}
+subscription_id     = "00000000-0000-0000-0000-000000000000"
+resource_group_name = "genai-gateway-rg"
+location            = "eastus"
+environment         = "staging"
+project_name        = "genai-gateway"
+acr_sku             = "Basic"
+container_cpu       = 0.5
+container_memory    = "1Gi"
+log_retention_days  = 30

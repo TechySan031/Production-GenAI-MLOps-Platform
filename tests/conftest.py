@@ -5,6 +5,7 @@ run without a real OpenAI API key or network access.
 """
 
 import os
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -58,25 +59,17 @@ def client():
 
     app = create_app()
 
-    with TestClient(app) as test_client:
-        # Override the real LLM service with a mock
-        from unittest.mock import AsyncMock, MagicMock
-
     # Override the real LLM service with a mock
     mock_service = MagicMock()
-
     mock_service.provider_name = "openai"
-
-    # async methods
     mock_service.is_healthy = AsyncMock(return_value=True)
     mock_service.chat = AsyncMock(return_value=_mock_chat_response())
-
-    # sync method
     mock_service.shutdown = MagicMock()
 
     app.state.llm_service = mock_service
 
-    yield test_client
+    with TestClient(app) as test_client:
+        yield test_client
 
     # Cleanup
     get_settings.cache_clear()

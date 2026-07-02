@@ -1,11 +1,16 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Container App Environment
+#
+# Shared hosting environment for Container Apps. Connected to Log Analytics
+# for centralized logging. Uses Consumption workload profile (serverless).
+# ─────────────────────────────────────────────────────────────────────────────
+
 resource "azurerm_container_app_environment" "env" {
-  name                = "genai-gateway-env-staging"
+  name                = "${local.name_prefix}-env"
   location            = azurerm_resource_group.genai.location
   resource_group_name = azurerm_resource_group.genai.name
 
   log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
-
-  mutual_tls_enabled = false
 
   workload_profile {
     name                  = "Consumption"
@@ -14,9 +19,5 @@ resource "azurerm_container_app_environment" "env" {
     maximum_count         = 0
   }
 
-  tags = {
-    Project     = "Production-GenAI-MLops-Platform"
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-  }
+  tags = local.common_tags
 }

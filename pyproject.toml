@@ -1,7 +1,9 @@
 [project]
 name = "genai-mlops-platform"
 version = "0.1.0"
-description = "Production GenAI MLOps Platform - LLM Gateway"
+description = "Production GenAI MLOps Platform — LLM Gateway with multi-provider support"
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -11,7 +13,7 @@ dependencies = [
     "openai>=1.60.0",
     "httpx>=0.28.0",
     "python-json-logger>=3.2.0",
-    "langfuse>=2.0.0",  
+    "langfuse>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -30,21 +32,27 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["UP017"]
+select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "SIM"]
+ignore = ["UP017", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S106"]
+"scripts/**/*.py" = ["S101", "S603", "S607"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring external services",
+]
 
-
-# ← add this entire block
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
 disallow_untyped_defs = true
 warn_return_any = false
-exclude = ["scripts/"]     # scripts use sys.path manipulation; exclude from strict checking
+exclude = ["scripts/"]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]

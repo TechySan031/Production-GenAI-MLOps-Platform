@@ -1,29 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Terraform CI — Validate, Format Check, and Plan
+#
+# Runs on every push/PR that modifies Terraform files.
+# Uses OIDC authentication (no stored secrets) consistent with the CD pipeline.
+#
+# Required GitHub Secrets:
+#   AZURE_CLIENT_ID       — OIDC service principal client ID
+#   AZURE_TENANT_ID       — Azure tenant ID
+#   AZURE_SUBSCRIPTION_ID — Azure subscription ID
+#
+# Required GitHub Variables:
+#   TF_BACKEND_RESOURCE_GROUP     — Resource group for Terraform state
+#   TF_BACKEND_STORAGE_ACCOUNT    — Storage account for Terraform state
+#   TF_BACKEND_CONTAINER          — Blob container for Terraform state
+# ─────────────────────────────────────────────────────────────────────────────
+
 name: Terraform CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "infra/terraform/**"
       - ".github/workflows/terraform.yml"
 
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
 
 permissions:
+  id-token: write
   contents: read
+  pull-requests: write
+
+env:
+  TF_WORKING_DIR: infra/terraform
+  ARM_USE_OIDC: true
 
 jobs:
   terraform:
+    name: Terraform Validate & Plan
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
       - name: Checkout Repository
@@ -31,23 +54,46 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
 
-      - name: Azure Login
+      - name: Azure Login — OIDC
         uses: azure/login@v2
         with:
-          creds: |
-            {
-              "clientId":"${{ secrets.ARM_CLIENT_ID }}",
-              "clientSecret":"${{ secrets.ARM_CLIENT_SECRET }}",
-              "subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID }}",
-              "tenantId":"${{ secrets.ARM_TENANT_ID }}"
-            }
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive -diff
+        id: fmt
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER }}" \
+            -backend-config="key=${{ github.event_name == 'push' && 'staging' || 'pr' }}.tfstate"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -input=false
+        run: terraform plan -input=false -no-color -out=tfplan
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terraform-plan-${{ github.sha }}
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          retention-days: 7

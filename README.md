@@ -2,57 +2,51 @@
 
 # Production GenAI MLOps Platform
 
-**A FastAPI-based LLM gateway with a fully automated cloud deployment pipeline — built to demonstrate how GenAI services should actually ship to production.**
+**A production-grade LLM gateway with automated CI/CD, infrastructure as code, observability, and AI evaluation gates — built to demonstrate how GenAI services should actually ship to production.**
 
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-blue?logo=githubactions&logoColor=white)](#)
-[![Deploy](https://img.shields.io/badge/Deploy-Azure_Container_Apps-0078D4?logo=microsoftazure&logoColor=white)](#)
-[![Status](https://img.shields.io/badge/Status-Live-success)](#)
-[![License](https://img.shields.io/badge/License-Private-lightgrey)](#)
-
-[Live Demo](#) · [Architecture](#architecture) · [CI/CD Pipeline](#cicd-pipeline) · [Security Model](#security)
-
-<br>
-
-`<!-- placeholder: architecture-hero.png — wide diagram showing Git push → CI/CD → ACR → Container Apps (staging/prod) → live endpoint -->`
+[![CI](https://github.com/TechySan031/Production-GenAI-MLOps-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/TechySan031/Production-GenAI-MLOps-Platform/actions/workflows/ci.yml)
+[![CD](https://github.com/TechySan031/Production-GenAI-MLOps-Platform/actions/workflows/cd.yml/badge.svg)](https://github.com/TechySan031/Production-GenAI-MLOps-Platform/actions/workflows/cd.yml)
+[![Terraform](https://github.com/TechySan031/Production-GenAI-MLOps-Platform/actions/workflows/terraform.yml/badge.svg)](https://github.com/TechySan031/Production-GenAI-MLOps-Platform/actions/workflows/terraform.yml)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Deploy](https://img.shields.io/badge/Deploy-Azure_Container_Apps-0078D4?logo=microsoftazure&logoColor=white)](#azure-architecture)
+[![IaC](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform&logoColor=white)](#infrastructure-as-code)
 
 </div>
 
-<br>
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Local Development](#local-development)
+- [API Reference](#api-reference)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [Azure Architecture](#azure-architecture)
+- [Infrastructure as Code](#infrastructure-as-code)
+- [Security Model](#security-model)
+- [Observability & Monitoring](#observability--monitoring)
+- [AI Evaluation Gates](#ai-evaluation-gates)
+- [Deployment Guide](#deployment-guide)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
 
 ---
 
-## 30-Second Overview
+## Overview
 
-This is an LLM gateway — a FastAPI service that sits between client applications and LLM providers (currently Groq running Llama 3.1, with a provider abstraction designed to support others) — deployed the way a real cloud team would deploy it, not the way a tutorial would.
+This is an **LLM gateway** — a FastAPI service that sits between client applications and LLM providers (Groq, OpenAI, Azure OpenAI). It's deployed with a production-grade pipeline that:
 
-Every push to `main` runs through a pipeline that builds a Docker image, pushes it to Azure Container Registry, deploys it to a staging environment, runs smoke tests against that staging deployment, and only then promotes the same image to production on Azure Container Apps. Authentication between GitHub and Azure uses OIDC federation — no long-lived cloud credentials are stored anywhere in this repository. Secrets live in Azure Key Vault and are retrieved at runtime via Managed Identity.
+- **Builds once, promotes everywhere** — the same Docker image moves from staging to production
+- **Uses OIDC federation** — no stored cloud credentials in CI/CD
+- **Enforces AI quality gates** — automated evaluation scoring before deployment
+- **Manages infrastructure as code** — Terraform for Azure resources with remote state
 
-The infrastructure itself — registries, container apps, identities, RBAC role assignments — is defined in Bicep and version-controlled alongside the application code, so the environment can be reconstructed from source rather than from memory of what was clicked in a portal.
-
-<br>
-
----
-
-## Key Capabilities
-
-Each of these exists to solve a specific problem, not to fill out a feature list.
-
-**Provider abstraction layer.**
-LLM providers change pricing, get rate-limited, or have outages. The gateway defines a `BaseProvider` interface that any provider (Groq, OpenAI, Azure OpenAI) implements, so swapping or adding a provider doesn't touch calling code. This is the same reason payment systems abstract behind a `PaymentProvider` interface — the dependency you can't fully control should be the one most isolated from the rest of the system.
-
-**OIDC instead of stored cloud credentials.**
-A leaked long-lived Azure service principal secret is a standing liability for as long as it's valid — often indefinitely, until someone remembers to rotate it. OIDC federation issues GitHub Actions a short-lived token at workflow runtime, scoped to this repository, that Azure trusts without any secret ever being stored in GitHub. There is nothing in this repo's secrets store to leak.
-
-**Staging before production, gated by smoke tests.**
-The same image that gets deployed to production was already deployed to staging and verified to respond correctly first. If the smoke test step fails, the production deployment step never runs. This is a small amount of pipeline logic that removes an entire category of "it worked on my machine" failure.
-
-**Infrastructure as Code (Bicep), not portal clicks.**
-Anything configured by hand in a cloud console is undocumented and unreproducible. Every resource — the Container Registry, the Container App, the Managed Identity, the RBAC role assignments — is defined in `infra/` and deployed declaratively, so the actual infrastructure state is something you can read, diff, and review like any other code change.
-
-**Key Vault + Managed Identity for secrets.**
-The application never holds a credential to fetch its own secrets — Managed Identity gives the running container an Azure-issued identity, and RBAC grants that identity read access to specific Key Vault secrets. There is no connection string or API key sitting in an environment variable file anywhere in this pipeline.
-
-<br>
+Every push to `main` triggers: lint → type check → security scan → unit tests → Docker build → AI evaluation → staging deploy → smoke test → production promotion (with manual approval gate).
 
 ---
 
@@ -64,16 +58,226 @@ flowchart LR
     Gateway --> MW[Request ID Middleware]
     MW --> Router{Provider Router}
     Router --> Groq[Groq · Llama 3.1]
-    Router --> OpenAI[OpenAI - optional]
-    Router --> AzureOpenAI[Azure OpenAI - optional]
-    Gateway --> Health[/health, /health/ready]
-    Gateway --> Logs[Structured JSON Logging]
-    Gateway -.->|reads secrets via Managed Identity| KV[Azure Key Vault]
+    Router --> OpenAI[OpenAI · GPT-4o]
+    Router --> AzureOpenAI[Azure OpenAI]
+    Gateway --> Health["/health · /health/ready"]
+    Gateway --> Obs[Observability Layer]
+    Obs --> Langfuse[Langfuse Tracing]
+    Obs --> Metrics[Structured Metrics]
+    Obs --> Cost[Cost Calculator]
 ```
 
-The gateway is intentionally a thin, well-bounded layer: request validation and routing live here; provider-specific logic lives behind the `BaseProvider` interface; configuration is environment-driven via Pydantic Settings rather than hardcoded.
+The gateway is intentionally a thin, well-bounded layer:
 
-<br>
+| Layer | Responsibility |
+|-------|---------------|
+| **Routes** | Request validation, HTTP error mapping |
+| **LLM Service** | Orchestration, observability integration |
+| **Providers** | Vendor-specific API calls behind `BaseProvider` interface |
+| **Observability** | Langfuse tracing, cost tracking, structured metrics |
+| **Config** | Environment-driven settings with fail-fast validation |
+
+---
+
+## Tech Stack
+
+| Category | Technology |
+|----------|-----------|
+| **Runtime** | Python 3.11, FastAPI, Uvicorn |
+| **LLM Providers** | Groq (Llama 3.1), OpenAI (GPT-4o), Azure OpenAI |
+| **Validation** | Pydantic v2, Pydantic Settings |
+| **Observability** | Langfuse, Azure Monitor, structured JSON logging |
+| **Infrastructure** | Terraform, Azure Container Apps, ACR, Log Analytics |
+| **CI/CD** | GitHub Actions (OIDC auth), Docker BuildX |
+| **Testing** | Pytest, pytest-cov, pytest-asyncio |
+| **Linting** | Ruff (lint + format), MyPy, Bandit |
+| **Container** | Multi-stage Docker, non-root user, pinned base images |
+
+---
+
+## Project Structure
+
+```
+├── app/                           # Application source code
+│   ├── main.py                    # FastAPI app factory + lifespan
+│   ├── config.py                  # Environment-driven settings (Pydantic)
+│   ├── logging_config.py          # Structured JSON / text logging
+│   ├── api/
+│   │   ├── routes/
+│   │   │   ├── health.py          # Liveness + readiness probes
+│   │   │   └── chat.py            # OpenAI-compatible /chat endpoint
+│   │   └── middleware/
+│   │       └── request_id.py      # X-Request-ID correlation
+│   ├── models/
+│   │   ├── requests.py            # Input validation schemas
+│   │   └── responses.py           # OpenAI-compatible response schemas
+│   ├── observability/
+│   │   ├── langfuse_client.py     # Null Object pattern tracing
+│   │   ├── cost_calculator.py     # Per-request cost estimation
+│   │   └── metrics.py             # Structured metrics for Azure Monitor
+│   └── services/
+│       ├── llm_service.py         # LLM orchestration layer
+│       └── providers/
+│           ├── base.py            # Abstract provider interface
+│           ├── openai_provider.py
+│           ├── groq_provider.py
+│           └── azure_openai_provider.py
+├── infra/
+│   └── terraform/                 # Azure infrastructure definitions
+│       ├── main.tf                # Locals (naming, tags)
+│       ├── providers.tf           # Terraform + AzureRM provider config
+│       ├── backend.tf             # Remote state (partial config)
+│       ├── variables.tf           # Input variables with validation
+│       ├── outputs.tf             # CI/CD-consumable outputs
+│       ├── resource_group.tf
+│       ├── acr.tf                 # Container Registry
+│       ├── container_app.tf       # Container App + health probes
+│       ├── container_app_environment.tf
+│       ├── log_analytics.tf
+│       ├── app_insights.tf
+│       ├── managed_identity.tf    # User-assigned identity
+│       └── role_assignments.tf    # RBAC (AcrPull, Monitoring)
+├── .github/workflows/
+│   ├── ci.yml                     # Code quality + Docker build + AI eval
+│   ├── cd.yml                     # Build → push → stage → smoke → prod
+│   ├── terraform.yml              # IaC validation + plan
+│   └── rollback.yml               # Manual production rollback
+├── tests/                         # Pytest suite
+├── scripts/
+│   ├── smoke_test.py              # Deployment verification
+│   └── eval/                      # AI evaluation gate
+├── Dockerfile                     # Multi-stage, non-root, pinned
+├── docker-compose.yml             # Local development
+├── pyproject.toml                 # Dependencies + tool config
+├── Makefile                       # Developer shortcuts
+└── .env.example                   # Environment variable template
+```
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- Python 3.11+
+- Docker (optional, for containerized development)
+- An LLM API key (Groq free tier recommended for development)
+
+### Quick Start
+
+```bash
+# 1. Clone and enter the project
+git clone https://github.com/TechySan031/Production-GenAI-MLOps-Platform.git
+cd Production-GenAI-MLOps-Platform
+
+# 2. Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# 3. Install dependencies
+pip install -e ".[dev]"
+
+# 4. Configure environment
+cp .env.example .env
+# Edit .env — set GROQ_API_KEY and LLM_PROVIDER=groq
+
+# 5. Run the server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Docker Development
+
+```bash
+# Start with hot-reload
+docker compose up --build
+
+# Run in background
+docker compose up -d
+
+# View logs
+docker compose logs -f gateway
+
+# Stop
+docker compose down
+```
+
+### Makefile Commands
+
+```bash
+make install        # Install dependencies
+make run            # Start dev server
+make lint           # Run linters
+make lint-fix       # Auto-fix lint issues
+make typecheck      # MyPy type checking
+make security       # Bandit security scan
+make test           # Run tests
+make test-cov       # Tests with coverage
+make ci-check       # All quality gates
+make docker         # Docker compose up
+make smoke          # Run smoke tests
+make eval           # Run AI evaluation
+make clean          # Remove generated files
+```
+
+---
+
+## API Reference
+
+### Health Checks
+
+```bash
+# Liveness probe — is the process alive?
+curl http://localhost:8000/health
+
+# Readiness probe — can it serve traffic?
+curl http://localhost:8000/health/ready
+```
+
+### Chat Completion (OpenAI-compatible)
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: my-trace-123" \
+  -d '{
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "What is MLOps?"}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 500
+  }'
+```
+
+**Response (OpenAI-compatible schema):**
+```json
+{
+  "id": "chatcmpl-abc123def456",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "llama-3.1-8b-instant",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "MLOps (Machine Learning Operations) is..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 150,
+    "total_tokens": 175
+  }
+}
+```
+
+### Interactive Docs
+
+When `ENVIRONMENT != production`, Swagger UI is available at `/docs` and ReDoc at `/redoc`.
 
 ---
 
@@ -81,198 +285,298 @@ The gateway is intentionally a thin, well-bounded layer: request validation and 
 
 ```mermaid
 flowchart TD
-    A[Push to main] --> B[GitHub Actions Triggered]
-    B --> C[Authenticate to Azure via OIDC]
-    C --> D[Build Docker Image]
-    D --> E[Push Image to Azure Container Registry]
-    E --> F[Deploy to Staging - Container Apps]
-    F --> G[Run Smoke Tests against Staging]
-    G -->|Pass| H[Deploy Same Image to Production]
-    G -->|Fail| X[Pipeline Halts - No Production Deploy]
-    H --> I[Production Health Check]
+    A[Push to main] --> B[CI: Code Quality Gates]
+    B --> B1[Ruff Lint + Format]
+    B --> B2[MyPy Type Check]
+    B --> B3[Bandit Security Scan]
+    B --> B4[Pytest + Coverage ≥75%]
+    B --> B5[Docker Build Verification]
+    B4 --> C[AI Evaluation Gates]
+    C --> C1[Start Gateway]
+    C --> C2[Smoke Tests]
+    C --> C3["Eval Gate (15 cases × LLM judge)"]
+    C3 --> D[CD: Build & Push to ACR]
+    D --> E[Deploy to Staging]
+    E --> F[Smoke Tests vs Staging]
+    F -->|Pass| G["Deploy to Production (manual approval)"]
+    F -->|Fail| X[Pipeline Halts]
+    G --> H[Production Health Check]
 ```
 
-The pipeline promotes a single immutable image through environments rather than rebuilding per-environment — what passed staging is exactly what runs in production, byte for byte.
+### Key Design Decisions
 
-<br>
+- **Image immutability**: Build once, promote through environments. What passed staging is exactly what runs in production, byte for byte.
+- **OIDC authentication**: GitHub Actions receives short-lived Azure tokens at runtime. No stored cloud credentials to rotate or leak.
+- **Concurrency control**: CI cancels in-progress PR runs; CD never cancels in-flight deployments.
 
 ---
 
-## Deployment Workflow
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant GH as GitHub Actions
-    participant ACR as Azure Container Registry
-    participant Stg as Staging (Container Apps)
-    participant Prod as Production (Container Apps)
-
-    Dev->>GH: git push main
-    GH->>GH: OIDC token exchange with Azure AD
-    GH->>ACR: docker build & push (tagged by commit SHA)
-    GH->>Stg: deploy image
-    GH->>Stg: smoke test (GET /health)
-    alt smoke test passes
-        GH->>Prod: deploy same image
-        GH->>Prod: verify /health
-    else smoke test fails
-        GH->>Dev: pipeline fails, production untouched
-    end
-```
-
-<br>
-
----
-
-## Infrastructure Layout
+## Azure Architecture
 
 ```mermaid
 graph TB
-    subgraph Azure Subscription
-        subgraph Resource Group
-            ACR[Container Registry]
-            MI[Managed Identity]
-            KV[Key Vault]
-            subgraph Staging
-                CASTG[Container App - staging]
+    subgraph Azure["Azure Subscription"]
+        subgraph RG["Resource Group"]
+            ACR["Container Registry"]
+            MI["Managed Identity"]
+            subgraph CAE["Container App Environment"]
+                STG["Container App<br/>(Staging)"]
+                PROD["Container App<br/>(Production)"]
             end
-            subgraph Production
-                CAPROD[Container App - production]
-            end
+            LAW["Log Analytics Workspace"]
+            AI["Application Insights"]
         end
     end
-    GHA[GitHub Actions - OIDC] -->|federated auth, no stored secret| ACR
-    GHA --> CASTG
-    GHA --> CAPROD
-    MI -->|RBAC: get secret| KV
-    CASTG -.->|runtime identity| MI
-    CAPROD -.->|runtime identity| MI
+
+    GHA["GitHub Actions<br/>(OIDC)"] -->|"federated auth"| ACR
+    GHA -->|"deploy"| STG
+    GHA -->|"promote"| PROD
+    MI -->|"AcrPull"| ACR
+    STG -.->|"identity"| MI
+    PROD -.->|"identity"| MI
+    CAE -->|"logs"| LAW
+    AI -->|"telemetry"| LAW
 ```
 
-`<!-- placeholder: real Azure Portal screenshot of the resource group, resource list, and Container App revision history -->`
+### Resources
 
-<br>
+| Resource | Purpose |
+|----------|---------|
+| **Container Registry** | Docker image storage (Managed Identity auth) |
+| **Container App** | Serverless compute with auto-scaling |
+| **Container App Environment** | Shared hosting with Log Analytics integration |
+| **Managed Identity** | Zero-secret Azure service authentication |
+| **Log Analytics** | Centralized log aggregation and querying |
+| **Application Insights** | Performance monitoring and request tracing |
+| **RBAC Assignments** | AcrPull + Monitoring Metrics Publisher |
 
 ---
 
-## Project Structure
+## Infrastructure as Code
 
+All Azure resources are defined in Terraform (`infra/terraform/`).
+
+### Initialize
+
+```bash
+cd infra/terraform
+
+# Initialize with backend configuration
+terraform init \
+  -backend-config="resource_group_name=genai-gateway-rg" \
+  -backend-config="storage_account_name=tfstategenaigateway" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=staging.tfstate"
 ```
-app/
-├── main.py                    # FastAPI app factory
-├── config.py                  # Environment-driven settings (Pydantic)
-├── logging_config.py          # Structured JSON logging
-├── api/
-│   ├── routes/                # health.py, chat.py
-│   └── middleware/             # request_id.py — trace correlation
-├── observability/
-│   ├── langfuse_client.py      # Trace/observability integration
-│   ├── cost_calculator.py      # Per-request cost estimation
-│   └── metrics.py
-└── services/
-    └── providers/               # base.py (interface) + per-provider implementations
 
-infra/                          # Bicep modules — ACR, Container Apps, Key Vault, Managed Identity, RBAC
-.github/workflows/               # build → push → deploy-staging → smoke-test → deploy-prod
-tests/                           # pytest suite covering routes, providers, observability
+### Plan & Apply
+
+```bash
+# Review changes
+terraform plan -var-file="terraform.tfvars"
+
+# Apply infrastructure
+terraform apply -var-file="terraform.tfvars"
+
+# View outputs
+terraform output
 ```
 
-Each folder boundary maps to a real separation of concerns: `services/providers` is the only place that knows about a specific LLM vendor; `infra/` is the only place that knows about specific Azure resource shapes; everything else depends on interfaces, not implementations.
+### Key Terraform Decisions
 
-<br>
-
----
-
-## Security
-
-**OIDC Federation.** GitHub Actions authenticates to Azure using a federated identity credential rather than a stored client secret. Azure AD trusts tokens issued by GitHub's OIDC provider for this specific repository and workflow, scoped and short-lived. There is no Azure credential anywhere in this repository's secrets, which means there's no credential to rotate, leak, or accidentally commit.
-
-**Managed Identity.** The running Container App authenticates to Azure services (Key Vault) using an identity Azure itself manages — no connection string, no key, no credential the application code has to hold or protect. If the container is compromised, there's no static secret to extract; access is tied to the identity's lifecycle, not to a value sitting in a file.
-
-**Key Vault + RBAC.** Secrets are stored once, centrally, and access is granted explicitly per-identity via Azure RBAC role assignments defined in Bicep — meaning the question "what can read this secret" is answerable by reading version-controlled infrastructure code, not by auditing a portal.
-
-**Why this matters more than it looks like it does:** the common failure mode in real incidents isn't a clever exploit — it's a long-lived credential sitting in a CI variable for two years, found in a breach dump, still valid. This pipeline is designed so that failure mode doesn't exist in the first place, rather than relying on rotation discipline to catch it after the fact.
-
-<br>
+- **Partial backend config**: Backend values provided at init time, not hardcoded in source
+- **DRY tagging**: All resources share `local.common_tags` — single source of truth
+- **Variable validation**: Input constraints enforce valid Azure regions, environments, and resource sizing
+- **Sensitive outputs**: Connection strings and keys are marked `sensitive` to prevent CI log exposure
 
 ---
 
-## Evaluation Roadmap
+## Security Model
 
-This platform currently verifies that the service **runs** — health checks and smoke tests confirm the deployment succeeded and the endpoint responds. It does not yet verify that the model's **output quality** is acceptable, which is a different and harder problem.
-
-The next milestone is a [Promptfoo](https://github.com/promptfoo/promptfoo)-based evaluation gate: a fixed set of test prompts with defined expected behavior, scored automatically, wired into the same CI pipeline as an additional gate before promotion to production. The reasoning: a deployment pipeline that ships a syntactically healthy but behaviorally regressed model is a worse failure mode than a pipeline that's slow, because it ships silently. Smoke tests catch "is the server up." An eval gate is what would catch "did the model's actual behavior get worse" — and right now, nothing in this pipeline checks that.
-
-This is deliberately sequenced after the deployment infrastructure rather than before it, because an eval gate without a reliable place to enforce it is just a script someone has to remember to run.
-
-<br>
-
----
-
-## Performance
-
-`<!-- placeholder: load test results — tool used (k6/Locust), RPS sustained, p50/p95/p99 latency, breaking point and bottleneck identified -->`
-
-`<!-- placeholder: real request-cost figures from cost_calculator.py / Langfuse — cost per 1,000 requests, broken down by provider -->`
-
-No performance claims are made here until they're backed by a real test run. A "production-ready" label with no load test behind it is exactly the kind of claim this project is trying not to make.
-
-<br>
+| Threat | Mitigation |
+|--------|-----------|
+| Leaked cloud credentials | **OIDC federation** — no stored Azure secrets in GitHub |
+| Container compromise | **Non-root user** — containers run as `appuser:1000` |
+| Secret logging | **Pydantic SecretStr** — API keys never appear in logs or error messages |
+| Excessive permissions | **RBAC least-privilege** — AcrPull only (not AcrPush) |
+| Dependency vulnerabilities | **Bandit** security scanning in CI + **pinned** base images |
+| Input injection | **Pydantic validation** — all inputs validated with type constraints |
+| CORS abuse | **Configurable origins** — not wildcard in production |
+| Observability failures | **Null Object pattern** — Langfuse failures never propagate to inference |
 
 ---
 
-## Screenshots
+## Observability & Monitoring
 
-`<!-- placeholder: GitHub Actions run — green pipeline, all steps visible -->`
+### Structured Logging
 
-`<!-- placeholder: Azure Portal — Container App overview showing staging + production revisions -->`
+All logs are emitted as structured JSON (production) or human-readable text (development), controlled by `LOG_FORMAT`:
 
-`<!-- placeholder: terminal — curl against the live /health endpoint with response -->`
+```json
+{
+  "timestamp": "2025-06-15T10:30:00Z",
+  "level": "INFO",
+  "logger": "app.services.llm_service",
+  "message": "Chat request completed",
+  "request_id": "abc-123",
+  "model": "llama-3.1-8b-instant",
+  "total_tokens": 175,
+  "latency_ms": 342.5,
+  "cost_usd": 0.0000175
+}
+```
 
-`<!-- placeholder: Swagger UI (/docs) showing the /chat endpoint schema -->`
+### Langfuse Integration
 
-<br>
+When `LANGFUSE_ENABLED=true`, every request generates a Langfuse trace correlated by `X-Request-ID`:
 
----
+- **Trace**: One per HTTP request (keyed on `X-Request-ID`)
+- **Generation**: One per LLM call with model, tokens, cost, latency
+- **Null Object pattern**: Langfuse failures = silent no-op, never a 500 error
 
-## Lessons Learned
+### Cost Tracking
 
-**Choosing Container Apps over AKS.** Kubernetes was considered and deliberately rejected for this workload. A single stateless FastAPI service with no need for custom scheduling, multi-tenant isolation, or a service mesh doesn't justify the operational overhead of running a control plane. Azure Container Apps gives the same OIDC/Managed Identity/scaling primitives with a fraction of the configuration surface. The lesson generalized from this: matching infrastructure complexity to actual workload requirements is itself an engineering decision, not a default to assume away.
-
-**Image-once, promote-everywhere.** Early iterations of the pipeline considered rebuilding the Docker image separately for staging and production. This was changed to build once and promote the same tagged image through both environments — eliminating any possibility of an environment-specific build difference being the cause of a "works in staging, fails in production" bug.
-
-**What's deliberately not built yet.** It would have been easy to add more — more providers, a custom dashboard, Kubernetes — before closing the gap between "the service runs" and "the service's output is verified to be correct." That gap (see Evaluation Roadmap above) was identified as the highest-priority next step specifically because every other addition would have been easier and less valuable.
-
-<br>
-
----
-
-## Future Roadmap
-
-1. **Evaluation gate (Promptfoo)** — automated quality scoring wired into CI as a promotion gate, not just a health check.
-2. **Load testing with published results** — real RPS/latency numbers and an identified breaking point, replacing the performance placeholders above.
-3. **Quality regression detection** — track eval scores over time so a prompt or model change that degrades behavior is visible before it ships, not after.
-4. **Cost-aware provider routing** — route requests to a cheaper/faster model by default, escalate to a stronger model under low-confidence conditions, with the tradeoff measured against the eval set rather than assumed.
-
-<br>
+Per-request cost is calculated automatically based on model pricing tables, supporting OpenAI, Azure OpenAI, and Groq models with automatic Azure deployment name normalization.
 
 ---
 
-## Engineering Summary
+## AI Evaluation Gates
 
-- Designed and deployed a multi-environment GenAI service on Azure Container Apps with a fully automated build → stage → smoke test → promote pipeline
-- Implemented zero-stored-secret cloud authentication using GitHub OIDC federation and Azure Managed Identity
-- Authored infrastructure as code (Bicep) covering container registry, compute, identity, and RBAC role assignments
-- Built a provider-agnostic LLM gateway architecture isolating vendor-specific logic behind a common interface
-- Identified and scoped the gap between deployment health and output quality verification, with a concrete, sequenced plan (Promptfoo evaluation gate) to close it
+Beyond health checks, the pipeline enforces **output quality** via AI evaluation gates:
 
-<br>
+1. **15 benchmark cases** across categories (factual, reasoning, coding, etc.)
+2. **LLM judge** (Llama 3.3 70B) scores each response on quality criteria
+3. **Regression detection**: Scores compared against stored baseline
+4. **Pipeline enforcement**: Score drop below threshold = deployment blocked
+
+This catches "the model's behavior got worse" — a failure mode that health checks and unit tests cannot detect.
+
+---
+
+## Deployment Guide
+
+### Prerequisites
+
+1. Azure subscription with Contributor access
+2. GitHub repository with Actions enabled
+3. Groq API key (free tier at [console.groq.com](https://console.groq.com))
+
+### Step 1: Create Azure Infrastructure
+
+```bash
+# Create the Terraform state storage account
+az storage account create \
+  --name tfstategenaigateway \
+  --resource-group genai-gateway-rg \
+  --sku Standard_LRS
+
+az storage container create \
+  --name tfstate \
+  --account-name tfstategenaigateway
+
+# Deploy infrastructure
+cd infra/terraform
+terraform init -backend-config="..."
+terraform apply
+```
+
+### Step 2: Configure GitHub
+
+**Secrets** (Settings → Secrets and variables → Actions):
+- `AZURE_CLIENT_ID` — OIDC service principal
+- `AZURE_TENANT_ID` — Azure AD tenant
+- `AZURE_SUBSCRIPTION_ID` — Azure subscription
+- `GROQ_API_KEY` — Groq API key
+
+**Variables** (Settings → Variables → Actions):
+- `ACR_NAME` — Container Registry name
+- `RESOURCE_GROUP` — Resource group name
+- `STAGING_APP_NAME` — Staging Container App name
+- `PROD_APP_NAME` — Production Container App name
+- `KEY_VAULT_NAME` — Key Vault name (for rollback data)
+
+### Step 3: Push and Deploy
+
+```bash
+git push origin main
+# CI runs → CD deploys to staging → smoke tests → manual approval → production
+```
+
+### Manual Rollback
+
+If production needs to revert:
+
+1. Go to **Actions** → **Rollback Production** → **Run workflow**
+2. Either specify a target image or leave blank to use the previous image from Key Vault
+3. Approve via the production environment gate
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `422` on `/chat` | Invalid request body | Check message format: `{"messages": [{"role": "user", "content": "..."}]}` |
+| `401` on `/chat` | Invalid LLM API key | Verify `GROQ_API_KEY` or `OPENAI_API_KEY` in `.env` |
+| `502` on `/chat` | LLM provider unreachable | Check provider status; verify API base URL |
+| `503` on `/health/ready` | Readiness check failed | Check API key configuration and provider connectivity |
+| Startup crash | Missing config | Check `.env` matches `.env.example`; ensure required vars are set |
+| Docker build fails | Dependency issue | Try `docker compose build --no-cache` |
+
+### Viewing Logs
+
+```bash
+# Local development
+uvicorn app.main:app --reload  # stdout
+
+# Docker
+docker compose logs -f gateway
+
+# Azure Container Apps
+az containerapp logs show \
+  --name genai-gateway-staging \
+  --resource-group genai-gateway-rg \
+  --follow
+```
+
+---
+
+## Roadmap
+
+- [x] Multi-provider LLM gateway (OpenAI, Groq, Azure OpenAI)
+- [x] Structured logging and request correlation
+- [x] Langfuse observability integration
+- [x] Per-request cost tracking
+- [x] CI pipeline (lint, type check, security, tests, coverage)
+- [x] Docker multi-stage build with security hardening
+- [x] Azure Container Apps deployment (staging + production)
+- [x] OIDC authentication (zero stored credentials)
+- [x] Terraform infrastructure as code
+- [x] AI evaluation gates with LLM judge scoring
+- [x] Manual rollback workflow
+- [ ] OpenTelemetry integration with Azure Monitor
+- [ ] Load testing with published p50/p95/p99 latency numbers
+- [ ] Cost-aware provider routing (escalate to stronger model on low confidence)
+- [ ] Rate limiting middleware
+- [ ] API key authentication for multi-tenant access
+- [ ] Streaming response support (SSE)
+- [ ] Prompt caching / semantic deduplication
+- [ ] Multi-region deployment with traffic manager
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code quality requirements, and pull request guidelines.
 
 ---
 
 <div align="center">
 
-**Status:** actively developed · **Next milestone:** evaluation gate (see [roadmap](#future-roadmap))
+**Built as a production engineering portfolio piece** — demonstrating how GenAI services should ship, not just how they should function.
+
+[Architecture](#architecture) · [Deploy](#deployment-guide) · [Security](#security-model) · [Roadmap](#roadmap)
 
 </div>
